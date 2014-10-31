@@ -17,7 +17,7 @@
 
 #include "hrav_protocol.h"
 
-#define DEBUG
+#undef DEBUG
 #ifdef	DEBUG
 #define PDEBUG(fmt, args...) printf(fmt, ## args)
 #else
