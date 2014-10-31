@@ -17,8 +17,8 @@
 
 #include "hrav_protocol.h"
 
-#undef PDEBUG
-#ifdef PC_DEBUG
+#define DEBUG
+#ifdef	DEBUG
 #define PDEBUG(fmt, args...) printf(fmt, ## args)
 #else
 #define PDEBUG(fmt, args...)
@@ -70,8 +70,12 @@ int main(int argc, char *argv[])
     /* Argument processing */
 	processArgs (argc, argv);
 	
-    sockfd = open_device(iface_name);
-	
+#ifdef DEBUG
+    sockfd = 1;
+#else
+	sockfd = open_device(iface_name);
+#endif
+
 	pthread_t threads[2];
 	int param[2];
 
@@ -98,7 +102,8 @@ int main(int argc, char *argv[])
 	double minspeed=5000;
 	double totalspeed=0;
 	int numoftime=0;
-	while (stop==0) usleep(1000);
+	while (stop==0) 
+		usleep(1000);
 }
 
 void processArgs (int argc, char **argv ) {
@@ -176,6 +181,12 @@ void print_current_time_with_ms (void)
            (intmax_t)s, ms);
 }
 
+double get_time_ms (struct timespec time){
+	double tmp;
+	tmp = (float)time.tv_sec*1000.0F+ (float) time.tv_nsec / 1000000.0F;
+	return tmp;
+}
+
 
 void print_time_with_ms (struct timespec spec)
 {
@@ -193,10 +204,30 @@ void print_time_with_ms (struct timespec spec)
            (intmax_t)s, ms);
 }
 
-int64_t timespecDiff(struct timespec *timeA_p, struct timespec *timeB_p)
+// int64_t timespecDiff(struct timespec *timeA_p, struct timespec *timeB_p)
+// {
+//   return ((timeA_p->tv_sec * 1000000000) + timeA_p->tv_nsec) -
+//            ((timeB_p->tv_sec * 1000000000) + timeB_p->tv_nsec);
+// }
+
+struct timespec timespecDiff(struct timespec start, struct timespec end)
 {
-  return ((timeA_p->tv_sec * 1000000000) + timeA_p->tv_nsec) -
-           ((timeB_p->tv_sec * 1000000000) + timeB_p->tv_nsec);
+	struct timespec temp;
+	if ((end.tv_nsec-start.tv_nsec)<0) {
+		temp.tv_sec = end.tv_sec-start.tv_sec-1;
+		temp.tv_nsec = 1000000000+end.tv_nsec-start.tv_nsec;
+	} else {
+		temp.tv_sec = end.tv_sec-start.tv_sec;
+		temp.tv_nsec = end.tv_nsec-start.tv_nsec;
+	}
+	return temp;
+}
+
+void print_timespec(struct timespec time)
+{
+	printf(" *** TIME *** \n");
+	printf(" tv_sec: %ju\n", (uintmax_t)time.tv_sec );
+	printf(" tv_nsec: %ju\n", (uintmax_t)time.tv_nsec);
 }
 
 
@@ -227,7 +258,8 @@ void send_file(int * value){
 	clock_gettime(CLOCK_MONOTONIC, &start);
 
 	printf("Size of file : %ld and loop: %d \n",filesize,no_loop);
-	print_time_with_ms(start);
+	//print_time_with_ms(start);
+	print_timespec(start);
 	rewind(fin);
 	
 	while(no_loop >0){
@@ -246,8 +278,13 @@ void send_file(int * value){
 
     	/* Sending packet */  
 		int  written_bytes = 0;  
-
-		int error = hrav_send_buff(sockfd, bufferID, data_buffer, buffersize);
+		int error;
+		
+#ifdef DEBUG
+	    	error = 0;
+#else
+			error = hrav_send_buff(sockfd, bufferID, data_buffer, buffersize);
+#endif
 		
 		if (error > 0) 
 		{
@@ -269,19 +306,20 @@ void send_file(int * value){
 	clock_gettime(CLOCK_MONOTONIC, &end);
 	printf("************************************************************************\n");
 	printf("Send finished no buffer %d\n", bufferID);
-	print_time_with_ms(end);
+	//print_time_with_ms(end);
+	print_timespec(end);
+
 	printf("DATA SIZE %f B = %f KB = %f MB\n", send_size, send_size/1024, send_size/(1024*1024));	
 	
-	uint64_t timeElapsed = timespecDiff(&end, &start);
 
-	double diff = (double)timeElapsed;
-	
-	printf("%f \n",diff); 
+	struct timespec timeElapsed = timespecDiff(start , end);
+	//printf(" Time elapsed : \n");
+	//print_timespec(timeElapsed);
+	double diff = get_time_ms(timeElapsed); //(double)timeElapsed;
+	printf("time elapsed in ms: %f \n", diff);
 
-	double speed = (send_size/1024)/ (diff *1000);
+	double speed = (send_size/1024)/(diff) * 1000;
 	printf("Speed %f KBps\n", speed);
-
-	print_current_time_with_ms();
 
 	//sleep(1);	
 	stop = 1;
