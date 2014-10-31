@@ -236,6 +236,15 @@ void print_timespec(struct timespec time)
 
 
 void send_file(int * value){
+	int bufID = -1;
+	int bufLength = 0;
+	int no_virus = 0;
+	int virus_id = 0;
+	int virus_offset = 0;
+	unsigned char receivebuff[2048];
+
+
+
 	struct timespec start, end;
 	printf("---------------\n");
 	/* Process file pointer */
@@ -291,11 +300,27 @@ void send_file(int * value){
 		
 		if (error > 0) 
 		{
-			printf("Sende file error at bufferID %d !!!", bufferID);
+			printf("Send file error at bufferID %d !!!", bufferID);
 			goto error_found;
 		}else{
 			//printf("Finisheed buffer: %d  - %d\n",bufferID, buffersize);
 		}
+
+
+		//receive 
+		error = hrav_receive_buff(sockfd, &bufID, receivebuff, &bufLength);
+		if(bufID >=0){
+			no_virus = receivebuff[0];
+			virus_id = receivebuff[7]* (1<<24) + receivebuff[6]* (1<<16) + receivebuff[5]* (1<<8) + receivebuff[4];
+			virus_offset = receivebuff[11]* (1<<24) + receivebuff[10]* (1<<16) + receivebuff[9]* (1<<8) + receivebuff[8];
+			//print_hex(receivebuff, bufLength);
+		}else{
+			no_virus = 0;
+		}
+		if(no_virus>0){
+			printf("Got %d viruses. FIRST: ID=%d, offset=%d\n",no_virus, virus_id, virus_offset);
+		}
+
 		
 		bufferID ++;
 		send_size += buffersize;
@@ -347,12 +372,26 @@ void receive_data(int* value){
 	printf("start receiving data \n");
 	int bufID = -1;
 	int bufLength = 0;
-	char* receivebuff[2048];
+	int no_virus = 0;
+	int virus_id = 0;
+	int virus_offset = 0;
+	unsigned char receivebuff[2048];
 	while (1){
 		if(hrav_receive_buff(sockfd, &bufID, receivebuff, &bufLength))
 			break;
 		else{
 			printf("Get bufID %d - lenght: %d \n", bufID, bufLength);
+			if(bufID >=0){
+				no_virus = receivebuff[0];
+				virus_id = receivebuff[7]* (1<<24) + receivebuff[6]* (1<<16) + receivebuff[5]* (1<<8) + receivebuff[4];
+				virus_offset = receivebuff[11]* (1<<24) + receivebuff[10]* (1<<16) + receivebuff[9]* (1<<8) + receivebuff[8];
+				print_hex(receivebuff, bufLength);
+			}else{
+				no_virus = 0;
+			}
+		}
+		if(no_virus>0){
+			printf("Got %d viruses. FIRST: ID=%d, offset=%d\n",no_virus, virus_id, virus_offset);
 		}
 	}
 

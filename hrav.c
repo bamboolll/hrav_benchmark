@@ -9,7 +9,6 @@
 #include <sys/socket.h>
 #include <unistd.h>
 void print_hex(unsigned char* buf, int count);
-int hrav_receive_buff(int sockfd, int & bufferID, char* receivebuff, int & buffer_length);
 
 
 int main(int argc, char** argv)
@@ -77,8 +76,3 @@ void print_hex(unsigned char* buf, int count)
 }
 
 
-int hrav_receive_buff(int sockfd, int & bufferID, char* receivebuff, int & buffer_length){
-
-
-	
-}
