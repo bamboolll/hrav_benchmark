@@ -9,6 +9,9 @@
 #include <sys/socket.h>
 #include <unistd.h>
 void print_hex(unsigned char* buf, int count);
+int hrav_receive_buff(int sockfd, int & bufferID, char* receivebuff, int & buffer_length);
+
+
 int main(int argc, char** argv)
 {
 	int sock, n;
@@ -71,4 +74,11 @@ void print_hex(unsigned char* buf, int count)
 		if((i&0x1F) == 31) printf("\n");
 	}
 	printf("\n");
+}
+
+
+int hrav_receive_buff(int sockfd, int & bufferID, char* receivebuff, int & buffer_length){
+
+
+	
 }

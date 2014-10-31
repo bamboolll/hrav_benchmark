@@ -182,3 +182,72 @@ int hrav_send_buff(int sockfd, int bufferID, char* sendbuff, int send_buffer_len
 	}
 	return 0;
 }
+
+
+
+int open_device_receive(char* iface_name){
+	int sock, n;
+	struct ifreq ethreq;
+	struct sockaddr_ll saddr;
+	int packet_num = 1;
+
+	if ( (sock=socket(PF_PACKET, SOCK_RAW, htons(ETH_P_ALL)))<0){
+		perror("recive socket");
+		exit(1);
+	}
+	/* Set the network card in promiscuos mode */
+	strncpy(ethreq.ifr_name,iface_name,IFNAMSIZ);
+	if (ioctl(sock,SIOCGIFINDEX,&ethreq)==-1) {
+		perror("recive ioctl");
+		close(sock);
+		exit(1);
+	}
+	
+	saddr.sll_family = AF_PACKET;
+    saddr.sll_protocol = htons(ETH_P_ALL);
+    saddr.sll_ifindex = ethreq.ifr_ifindex;
+
+    if (bind(sock, (struct sockaddr*)(&(saddr)), sizeof(saddr)) < 0)
+    {
+        perror("recive Bind");
+		close(sock);
+		exit(1);
+    }
+
+	return sock;
+}
+
+void print_hex(unsigned char* buf, int count)
+{
+	int i;
+	for(i = 0; i < count; i++)
+	{
+		printf("%x ", buf[i]);
+		if((i&0x1F) == 31) printf("\n");
+	}
+	printf("\n");
+}
+
+
+int hrav_receive_buff(int sockfd, int* bufferID, char* receivebuff, int* buffer_length){
+	int n;
+	int packet_num=0;
+	char have_packet = FALSE;
+	while(1) {
+		n = recvfrom(sockfd,receivebuff,2048,0,NULL,NULL);
+		printf("Packet%d -----------------------------------------------------\n", packet_num);
+		packet_num ++;
+		print_hex(receivebuff, n);
+		if(receivebuff[0]==0xfe && receivebuff[1] == 0xca && receivebuff[2] == 0xae){
+			have_packet = TRUE;
+			break;
+		}
+	}
+	*bufferID = receivebuff[6]<<16 & receivebuff[5]<<8 & receivebuff[4];
+	*buffer_length = n;
+	if(have_packet){
+		printf("FIND correct one with iD %d \n", *bufferID);
+	}
+
+	return 0;	
+}

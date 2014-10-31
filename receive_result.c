@@ -1,3 +1,4 @@
+
 #include <linux/if_ether.h>
 #include <linux/if_packet.h>
 #include <net/if.h>
@@ -73,10 +74,7 @@ int main(int argc, char *argv[])
 #ifdef DEBUG
     sockfd = 1;
 #else
-    if(is_send)
-		sockfd = open_device(iface_name);
-	else
-		sockfd = open_device_receive(iface_name);
+	sockfd = open_device(iface_name);
 #endif
 
 	pthread_t threads[2];
@@ -343,18 +341,5 @@ void send_file(int * value){
 }
 
 void receive_data(int* value){  
-	printf("**************************************************\n");
-	printf("start receiving data \n");
-	int bufID = -1;
-	int bufLength = 0;
-	char* receivebuff[2048];
-	while (1){
-		if(hrav_receive_buff(sockfd, &bufID, receivebuff, &bufLength))
-			break;
-		else{
-			printf("Get bufID %d - lenght: %d \n", bufID, bufLength);
-		}
-	}
 
-	printf("finish receiving data \n");
 }
