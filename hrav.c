@@ -53,13 +53,12 @@ int main(int argc, char** argv)
 //    	sendbuf[32] = 1;sendbuf[33] = 0;sendbuf[34] = 0xad;sendbuf[35] = 0xde;
     	
  	if(sendto(sock, sendbuf,100, 0, NULL, 0) <= 0) printf("Error send\n");;
-/*	while (1) {
+	while (1) {
 		n = recvfrom(sock,buffer,2048,0,NULL,NULL);
 		printf("Packet%d -----------------------------------------------------\n", packet_num);
 		print_hex(buffer, n);
 		packet_num++;
 	}
-*/
 	return 0;
 }
 
