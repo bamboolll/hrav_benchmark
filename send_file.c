@@ -48,6 +48,7 @@ long buffersize, filesize, datasize, position;
 char data_buffer[SEND_BUF_SIZE_MAX];
 
 int sockfd;
+int sockfd_receive;
 int error;
 
 void send_file(int *value);
@@ -75,8 +76,7 @@ int main(int argc, char *argv[])
 #else
     if(is_send)
 		sockfd = open_device(iface_name);
-	else
-		sockfd = open_device_receive(iface_name);
+	sockfd_receive = open_device_receive("nf0");
 #endif
 
 	pthread_t threads[2];
@@ -303,12 +303,12 @@ void send_file(int * value){
 			printf("Send file error at bufferID %d !!!", bufferID);
 			goto error_found;
 		}else{
-			//printf("Finisheed buffer: %d  - %d\n",bufferID, buffersize);
+			//printf("Finisheed buffer: %d  - %ld\n", bufferID, buffersize);
 		}
 
 
 		//receive 
-		error = hrav_receive_buff(sockfd, &bufID, receivebuff, &bufLength);
+		error = hrav_receive_buff(sockfd_receive, &bufID, receivebuff, &bufLength);
 		if(bufID >=0){
 			no_virus = receivebuff[0];
 			virus_id = receivebuff[7]* (1<<24) + receivebuff[6]* (1<<16) + receivebuff[5]* (1<<8) + receivebuff[4];

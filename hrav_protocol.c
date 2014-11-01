@@ -15,7 +15,7 @@ int open_device(char* iface_name){
 		exit(1);
 	}
 	
-	printf("Found iface %s\n", iface_name);
+	printf("OPEN interface %s\n", iface_name);
 	
 	bzero(&ifr, sizeof(struct ifreq));
 	strncpy(ifr.ifr_name, iface_name, IFNAMSIZ);
@@ -94,6 +94,7 @@ int hrav_send_buff(int sockfd, int bufferID, char* sendbuff, int send_buffer_len
 
 //	bzero(sendPacket.info,DMA_BUFF_INFO);
 	// Prepare packet
+
 	while(!last)
 	{
 		//PrintInHex("sendbuf after while ", sendbuff, 4);
@@ -105,6 +106,7 @@ int hrav_send_buff(int sockfd, int bufferID, char* sendbuff, int send_buffer_len
 		sendBuffer.length = 0;
 		bzero(sendBuffer.buffer,DMA_BUF_SIZE);
 //		PrintInHex("sendbuf after bzero ", sendbuff, 4);
+
 		//calculate data length
 		int dataSize;
 		if(first){
@@ -234,6 +236,7 @@ int hrav_receive_buff(int sockfd, int* bufferID, unsigned char* receivebuff, int
 	int packet_num=0;
 	char have_packet = FALSE;
 	unsigned char tmpbuff[2048];
+	//printf("Begin receive \n");
 	while(1) {
 		n = recvfrom(sockfd,tmpbuff,2048,0,NULL,NULL);
 		//printf("Packet%d -----------------------------------------------------\n", packet_num);
