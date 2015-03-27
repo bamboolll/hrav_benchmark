@@ -1,10 +1,10 @@
 all: benchmark send receive hrav_protocol send_file
 benchmark_dma: benchmark_dma.o hrav_protocol.o
-	gcc -o benchmark_dma benchmark_dma.o hrav_protocol.o -lm -lpthread
+	gcc -o benchmark_dma benchmark_dma.o hrav_protocol.o -lm -lpthread -lrt
 benchmark_dma.o: benchmark_dma.c
 	gcc -c benchmark_dma.c
 benchmark_scanner: benchmark_scanner.o hrav_protocol.o
-	gcc -o benchmark_scanner benchmark_scanner.o hrav_protocol.o -lm -lpthread
+	gcc -o benchmark_scanner benchmark_scanner.o hrav_protocol.o -lm -lpthread -lrt
 benchmark_scanner.o: benchmark_scanner.c
 	gcc -c benchmark_scanner.c
 send_file: send_file.o hrav_protocol.o
