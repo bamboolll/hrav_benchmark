@@ -73,6 +73,9 @@ int open_device(char* iface_name);
 int send_data(int sockfd, const char* sendbuff, int len);
 void PrintInHex(char *mesg, unsigned char *p, int len);
 int hrav_send_buff(int sockfd, int bufferID, char* sendbuff, int send_buffer_length);
+int hrav_receive_buff(int sockfd, int* bufferID, char* receivebuff, int* buffer_length);
+void print_hex(unsigned char* buf, int count);
+int open_device_receive(char* iface_name);
 
 
 #endif
