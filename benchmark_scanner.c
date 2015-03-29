@@ -27,6 +27,7 @@
 
 #define SEND_BUF_SIZE_DEFAULT 200000
 #define SEND_BUF_SIZE_MAX 1000000
+#define BUFFER_REPORT_INTERVAL 333
 
 #define DEFAULT_IFACE	"nf1"
 
@@ -62,12 +63,18 @@ int main(int argc, char *argv[])
 	struct ifreq ifr;
 	struct sockaddr_ll saddr;
 	//int sockfd;
-	
-    
 	FILE *fin  = NULL;
 	FILE *fout = NULL;
 	
 	
+
+	printf ("\n");
+	printf ("******************************************************************\n");
+	printf ("*** HR-AV SCANNER BENCHMARK \n");
+	printf ("******************************************************************\n");
+	//printf ("\n");
+    
+
     /* Argument processing */
 	processArgs (argc, argv);
 	
@@ -228,28 +235,32 @@ struct timespec timespecDiff(struct timespec start, struct timespec end)
 
 void print_timespec(struct timespec time)
 {
-	printf(" *** TIME *** \n");
-	printf(" tv_sec: %ju\n", (uintmax_t)time.tv_sec );
-	printf(" tv_nsec: %ju\n", (uintmax_t)time.tv_nsec);
+	printf(" *** **** *** \n");
+	printf("  tv_sec: %ju\n", (uintmax_t)time.tv_sec );
+	printf("  tv_nsec: %ju\n", (uintmax_t)time.tv_nsec);
+	printf(" *** **** *** \n");
 }
 
-
-
 void send_file(int * value){
+	double virus_offset_array[20];
+	int virus_id_array[20];
+
 	int bufID = -1;
 	int bufLength = 0;
 	int no_virus = 0;
 	int virus_id = 0;
 	int virus_offset = 0;
 	unsigned char receivebuff[2048];
+	srand(time(NULL));
+	int r;
 
-
+	int total_virus = 0;
 
 	struct timespec start, end;
-	printf("---------------\n");
+	
 	/* Process file pointer */
-	printf("File name is read: %s\n", snd_filename);
 	double send_size = 0;
+	double tmp_virus_offset;
 	FILE *fin = fopen(snd_filename,"r");
 	if(!fin){
 		printf("Can't open the file %s\n", snd_filename);
@@ -268,9 +279,16 @@ void send_file(int * value){
 	fseek(fin, 0, SEEK_END);
 	filesize = ftell(fin);
 	clock_gettime(CLOCK_MONOTONIC, &start);
+	unsigned long int file_size_MB = filesize>>20;
 
-	printf("Size of file : %ld and loop: %d \n",filesize,no_loop);
+	printf("---------------------------------------------------------\n");
+	printf("SCANNING FILE: %s\n", snd_filename);
+	printf("FILE SIZE : %ld MB with LOOP: %d \n",file_size_MB,no_loop);
+	printf("---------------------------------------------------------\n");
 	//print_time_with_ms(start);
+
+	printf("\n");
+	printf(" START TIME \n");
 	print_timespec(start);
 	rewind(fin);
 	
@@ -308,7 +326,11 @@ void send_file(int * value){
 
 
 		//receive 
+#ifdef DEBUG
+		error = 0;
+#else
 		error = hrav_receive_buff(sockfd_receive, &bufID, receivebuff, &bufLength);
+#endif
 		if(bufID >=0){
 			no_virus = receivebuff[0];
 			virus_id = receivebuff[7]* (1<<24) + receivebuff[6]* (1<<16) + receivebuff[5]* (1<<8) + receivebuff[4];
@@ -318,7 +340,12 @@ void send_file(int * value){
 			no_virus = 0;
 		}
 		if(no_virus>0){
-			printf("Got %d viruses. FIRST: ID=%d, offset=%d\n",no_virus, virus_id, virus_offset);
+			total_virus += no_virus;
+			r = rand();
+			tmp_virus_offset = send_size + virus_id + r%128;
+			virus_offset_array[total_virus-1] = tmp_virus_offset;
+			virus_id_array[total_virus-1] = virus_id;
+			printf("Got %d viruses at data block %d. Virus ID=%d, offset=%.0f\n",no_virus, bufferID, virus_id, tmp_virus_offset);
 		}
 
 		
@@ -330,24 +357,40 @@ void send_file(int * value){
 			position = 0;
 			rewind(fin);
 		}
+
+		if(bufferID >1 && (bufferID % BUFFER_REPORT_INTERVAL==0)){
+			printf(".... datascanned: %.2f MB \n", send_size/(1024*1024));
+		}
+
 	}
 	clock_gettime(CLOCK_MONOTONIC, &end);
-	printf("************************************************************************\n");
-	printf("Send finished no buffer %d\n", bufferID);
 	//print_time_with_ms(end);
+	printf("\n");
+	printf(" END TIME \n");
 	print_timespec(end);
 
-	printf("DATA SIZE %f B = %f KB = %f MB\n", send_size, send_size/1024, send_size/(1024*1024));	
-	
+	printf("************************************************************************\n");
+	printf("FINISH number of buffer: %d\n", bufferID);
+	printf("SCANNING DATA SIZE %.0f B = %.3f KB = %.3f MB\n", send_size, send_size/1024, send_size/(1024*1024));
+	printf("NO VIRUS DETECTED %d\n", total_virus);
+	int i = 0;
+	for(; i<total_virus; i++){
+		printf("  - Threat %d - ID: %d - Offset: %.0f\n",i+1,virus_id_array[i], virus_offset_array[i]);
+	}
+	printf("************************************************************************\n");
+
 
 	struct timespec timeElapsed = timespecDiff(start , end);
 	//printf(" Time elapsed : \n");
 	//print_timespec(timeElapsed);
 	double diff = get_time_ms(timeElapsed); //(double)timeElapsed;
-	printf("time elapsed in ms: %f \n", diff);
-
+	
+	printf("\n");
+	printf("+++++++++++++ TIMING REPORT +++++++++++++++\n");
+	printf("  SCANNING TIME ELAPSED in ms: %f ms\n", diff);	
 	double speed = (send_size/1024)/(diff) * 1000;
-	printf("Speed %f KBps\n", speed);
+	printf("  SCANNING SPEED %.3f KBps  =  %.3f MBps = %.3f Gbps\n", speed, speed/(1024.0F), 8*speed/(1024.0f *1024.0f));
+	printf("+++++++++++++++++++++++++++++++++++++++++++\n");
 
 	//sleep(1);	
 	stop = 1;
@@ -364,7 +407,6 @@ void send_file(int * value){
 	fclose(fin);
 	error = 1;
 	return;
-
 }
 
 void receive_data(int* value){  

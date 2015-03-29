@@ -27,11 +27,13 @@
 
 #define SEND_BUF_SIZE_DEFAULT 200000
 #define SEND_BUF_SIZE_MAX 1000000
+#define BUFFER_REPORT_INTERVAL 333
 
 #define DEFAULT_IFACE	"nf1"
 
 static int is_send = 0;
 static int is_recv = 0;
+static int is_send_buffer = 0;
 
 static char *snd_filename = NULL;
 static char *rcv_filename = NULL;
@@ -40,6 +42,8 @@ static char *iface_name = DEFAULT_IFACE;
 static unsigned long send_number = 0;
 static unsigned long recv_number = 0;
 
+
+int test_size = 1000; //default 1G
 int stop = 0;
 int i, is_first;
 int no_loop = 1;
@@ -52,6 +56,7 @@ int sockfd_receive;
 int error;
 
 void send_file(int *value);
+void send_buffer(int *value);
 void receive_data(int *value);
 void processArgs (int, char ** );
 void usage ();
@@ -62,19 +67,25 @@ int main(int argc, char *argv[])
 	struct ifreq ifr;
 	struct sockaddr_ll saddr;
 	//int sockfd;
-	
-    
 	FILE *fin  = NULL;
 	FILE *fout = NULL;
 	
 	
+
+	printf ("\n");
+	printf ("******************************************************************\n");
+	printf ("*** HR-AV DMA BENCHMARK \n");
+	printf ("******************************************************************\n");
+	//printf ("\n");
+    
+
     /* Argument processing */
 	processArgs (argc, argv);
 	
 #ifdef DEBUG
     sockfd = 1;
 #else
-    if(is_send)
+    if(is_send || is_send_buffer)
 		sockfd = open_device(iface_name);
 	sockfd_receive = open_device_receive("nf0");
 #endif
@@ -89,12 +100,17 @@ int main(int argc, char *argv[])
 	time_t start_measure, stop_measure;
 	time(&start_measure);	
 	if(is_send && (snd_filename != NULL)) {
+		//param[0]  = 1; //test with reading file
 		pthread_create(&threads[0], NULL, (void *)send_file, (void *) &param[0]);
+	}else{
+		//param[0] = 0 ; //test without reading file
+		pthread_create(&threads[0], NULL, (void *)send_buffer, (void *) &param[0]);
 	}
 
-	if(is_recv && (rcv_filename != NULL)) {
+
+	/*if(is_recv && (rcv_filename != NULL)) {
 		pthread_create(&threads[1], NULL, (void *)receive_data, (void *) &param[1]);
-	}
+	}*/
 
 	char result[100];
 	char hash[32];
@@ -112,7 +128,7 @@ int main(int argc, char *argv[])
 void processArgs (int argc, char **argv ) {
 	char c;
 
-	while ((c = getopt (argc, argv, "i:s:r:h:l:b:")) != -1)
+	while ((c = getopt (argc, argv, "i:s:r:h:l:b:S:")) != -1)
 	switch (c)
 	{
 		case 'i':
@@ -120,6 +136,10 @@ void processArgs (int argc, char **argv ) {
 		break;
 		case 'l':
 		no_loop = atoi(optarg);
+		break;
+		case 'S':
+		is_send_buffer = 1;
+		test_size = atoi(optarg);
 		break;
 		case 'b':
 		config_buffer_size = atoi(optarg);
@@ -149,7 +169,7 @@ void processArgs (int argc, char **argv ) {
 		usage();
 		exit(1);
 	}
-	if (!is_send && !is_recv) {
+	if (!is_send_buffer && !is_send && !is_recv) {
 		usage(); exit(1);
 	}
 }
@@ -162,6 +182,7 @@ void usage () {
 	printf("\nOptions:\n");
 	printf("         -i <iface>       : interface name.\n");
 	printf("         -s <file name>   : send file to system.\n");
+	printf("         -S <Size_in_MB>   : Senging size in MB\n");
 	//printf("         -r <file name>   : receive file from system.\n");
 	printf("         -l <n>   : loop n times.\n");
 	printf("         -h        : help.\n");
@@ -228,9 +249,132 @@ struct timespec timespecDiff(struct timespec start, struct timespec end)
 
 void print_timespec(struct timespec time)
 {
-	printf(" *** TIME *** \n");
-	printf(" tv_sec: %ju\n", (uintmax_t)time.tv_sec );
-	printf(" tv_nsec: %ju\n", (uintmax_t)time.tv_nsec);
+	printf(" *** **** *** \n");
+	printf("  tv_sec: %ju\n", (uintmax_t)time.tv_sec );
+	printf("  tv_nsec: %ju\n", (uintmax_t)time.tv_nsec);
+	printf(" *** **** *** \n");
+}
+
+
+
+void send_buffer(int * value){
+	int bufID = -1;
+	int bufLength = 0;
+	int no_virus = 0;
+	int virus_id = 0;
+	int virus_offset = 0;
+	unsigned char receivebuff[2048];
+
+
+
+	struct timespec start, end;
+	
+	/* Process file pointer */
+	double send_size = 0;
+
+	/* Used for processing header of file */
+	is_first = 1; 
+	
+	/* Clear position of file*/
+	position = 0;
+	filesize = 0;
+	int bufferID = 0;
+	
+	/* Getting size of file */
+	filesize = test_size*1024*1024; //test_size in MB
+	clock_gettime(CLOCK_MONOTONIC, &start);
+	unsigned long int file_size_MB = filesize>>20;
+
+	printf("---------------------------------------------------------\n");
+	//printf("TRANSFER DATA SIZE: %s\n", snd_filename);
+	printf("TRANSFER DATA SIZE : %ld MB with LOOP: %d \n",file_size_MB,no_loop);
+	printf("---------------------------------------------------------\n");
+	//print_time_with_ms(start);
+
+	printf("\n");
+	printf(" START TIME \n");
+	print_timespec(start);
+	
+	while(no_loop >0){
+    	/* Clear all sending buffer */
+		bzero(data_buffer, config_buffer_size);
+
+		/* Data of frame to be sent */	             
+		buffersize = ((filesize - position)>= config_buffer_size)?config_buffer_size:(filesize - position); //fread(data_buffer, 1, config_buffer_size, fin);		
+
+    	/* Seeking to read next time */
+		position = position + buffersize;
+    	/* Padding if frame is smaller than 64 */
+
+    	/* Sending packet */  
+		int  written_bytes = 0;  
+		int error;
+		//printf("buffer size %ld, bufferid %d \n ", buffersize, bufferID);
+#ifdef DEBUG
+	    	error = 0;
+#else
+			error = hrav_send_buff(sockfd, bufferID, data_buffer, buffersize);
+#endif
+		if (error > 0) 
+		{
+			printf("Send file error at bufferID %d !!!", bufferID);
+			goto error_found;
+		}else{
+			//printf("Finisheed buffer: %d  - %ld\n", bufferID, buffersize);
+		}
+		bufferID ++;
+		send_size += buffersize;
+		//printf("Current ftell %ld \n", ftell(fin));
+		if(position >= filesize){
+			no_loop--;
+			position = 0;
+		}
+
+
+		if(bufferID >1 && (bufferID % BUFFER_REPORT_INTERVAL==0)){
+			printf(".... data sent: %.2f MB \n", send_size/(1024*1024));
+			//printf("abc \n");
+		}
+
+	}
+	clock_gettime(CLOCK_MONOTONIC, &end);
+	//print_time_with_ms(end);
+	printf("\n");
+	printf(" END TIME \n");
+	print_timespec(end);
+
+	printf("************************************************************************\n");
+	printf("FINISH number of buffer: %d\n", bufferID);
+	printf("SENT DATA SIZE %.0f B = %.3f KB = %.3f MB\n", send_size, send_size/1024, send_size/(1024*1024));	
+	printf("************************************************************************\n");
+
+
+	struct timespec timeElapsed = timespecDiff(start , end);
+	//printf(" Time elapsed : \n");
+	//print_timespec(timeElapsed);
+	double diff = get_time_ms(timeElapsed); //(double)timeElapsed;
+	
+	printf("\n");
+	printf("+++++++++++++ TIMING REPORT +++++++++++++++\n");
+	printf("  TRANSFER TIME ELAPSED in ms: %f ms\n", diff);	
+	double speed = (send_size/1024)/(diff) * 1000;
+	printf("  TRANSFER SPEED %.3f KBps  =  %.3f MBps = %.3f Gbps\n", speed, speed/(1024.0F), 8*speed/(1024.0f *1024.0f));
+	printf("+++++++++++++++++++++++++++++++++++++++++++\n");
+
+	//sleep(1);	
+	stop = 1;
+	not_error_found:
+	shutdown(sockfd, SHUT_RDWR);
+	close(sockfd);
+
+	error = 0;
+	return;
+
+	error_found:
+	shutdown(sockfd, SHUT_RDWR);
+	close(sockfd);
+	error = 1;
+	return;
 }
 
 
@@ -246,9 +390,8 @@ void send_file(int * value){
 
 
 	struct timespec start, end;
-	printf("---------------\n");
+	
 	/* Process file pointer */
-	printf("File name is read: %s\n", snd_filename);
 	double send_size = 0;
 	FILE *fin = fopen(snd_filename,"r");
 	if(!fin){
@@ -268,9 +411,16 @@ void send_file(int * value){
 	fseek(fin, 0, SEEK_END);
 	filesize = ftell(fin);
 	clock_gettime(CLOCK_MONOTONIC, &start);
+	unsigned long int file_size_MB = filesize>>20;
 
-	printf("Size of file : %ld and loop: %d \n",filesize,no_loop);
+	printf("---------------------------------------------------------\n");
+	printf("SCANNING FILE: %s\n", snd_filename);
+	printf("FILE SIZE : %ld MB with LOOP: %d \n",file_size_MB,no_loop);
+	printf("---------------------------------------------------------\n");
 	//print_time_with_ms(start);
+
+	printf("\n");
+	printf(" START TIME \n");
 	print_timespec(start);
 	rewind(fin);
 	
@@ -306,9 +456,13 @@ void send_file(int * value){
 			//printf("Finisheed buffer: %d  - %ld\n", bufferID, buffersize);
 		}
 
-
+/*
 		//receive 
+#ifdef DEBUG
+		error = 0;
+#else
 		error = hrav_receive_buff(sockfd_receive, &bufID, receivebuff, &bufLength);
+#endif
 		if(bufID >=0){
 			no_virus = receivebuff[0];
 			virus_id = receivebuff[7]* (1<<24) + receivebuff[6]* (1<<16) + receivebuff[5]* (1<<8) + receivebuff[4];
@@ -321,7 +475,7 @@ void send_file(int * value){
 			printf("Got %d viruses. FIRST: ID=%d, offset=%d\n",no_virus, virus_id, virus_offset);
 		}
 
-		
+*/
 		bufferID ++;
 		send_size += buffersize;
 		//printf("Current ftell %ld \n", ftell(fin));
@@ -330,24 +484,35 @@ void send_file(int * value){
 			position = 0;
 			rewind(fin);
 		}
+
+		if(bufferID >1 && (bufferID % BUFFER_REPORT_INTERVAL==0)){
+			printf(".... data sent: %.2f MB \n", send_size/(1024*1024));
+		}
+
 	}
 	clock_gettime(CLOCK_MONOTONIC, &end);
-	printf("************************************************************************\n");
-	printf("Send finished no buffer %d\n", bufferID);
 	//print_time_with_ms(end);
+	printf("\n");
+	printf(" END TIME \n");
 	print_timespec(end);
 
-	printf("DATA SIZE %f B = %f KB = %f MB\n", send_size, send_size/1024, send_size/(1024*1024));	
-	
+	printf("************************************************************************\n");
+	printf("FINISH number of buffer: %d\n", bufferID);
+	printf("SENT DATA SIZE %.0f B = %.3f KB = %.3f MB\n", send_size, send_size/1024, send_size/(1024*1024));	
+	printf("************************************************************************\n");
+
 
 	struct timespec timeElapsed = timespecDiff(start , end);
 	//printf(" Time elapsed : \n");
 	//print_timespec(timeElapsed);
 	double diff = get_time_ms(timeElapsed); //(double)timeElapsed;
-	printf("time elapsed in ms: %f \n", diff);
-
+	
+	printf("\n");
+	printf("+++++++++++++ TIMING REPORT +++++++++++++++\n");
+	printf("  TRANSFER TIME ELAPSED in ms: %f ms\n", diff);	
 	double speed = (send_size/1024)/(diff) * 1000;
-	printf("Speed %f KBps\n", speed);
+	printf("  TRANSFER SPEED %.3f KBps  =  %.3f MBps = %.3f Gbps\n", speed, speed/(1024.0F), 8*speed/(1024.0f *1024.0f));
+	printf("+++++++++++++++++++++++++++++++++++++++++++\n");
 
 	//sleep(1);	
 	stop = 1;
@@ -364,7 +529,6 @@ void send_file(int * value){
 	fclose(fin);
 	error = 1;
 	return;
-
 }
 
 void receive_data(int* value){  

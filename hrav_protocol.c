@@ -15,7 +15,7 @@ int open_device(char* iface_name){
 		exit(1);
 	}
 	
-	printf("Found iface %s\n", iface_name);
+	printf("OPEN interface %s\n", iface_name);
 	
 	bzero(&ifr, sizeof(struct ifreq));
 	strncpy(ifr.ifr_name, iface_name, IFNAMSIZ);
@@ -94,6 +94,7 @@ int hrav_send_buff(int sockfd, int bufferID, char* sendbuff, int send_buffer_len
 
 //	bzero(sendPacket.info,DMA_BUFF_INFO);
 	// Prepare packet
+
 	while(!last)
 	{
 		//PrintInHex("sendbuf after while ", sendbuff, 4);
@@ -105,6 +106,7 @@ int hrav_send_buff(int sockfd, int bufferID, char* sendbuff, int send_buffer_len
 		sendBuffer.length = 0;
 		bzero(sendBuffer.buffer,DMA_BUF_SIZE);
 //		PrintInHex("sendbuf after bzero ", sendbuff, 4);
+
 		//calculate data length
 		int dataSize;
 		if(first){
@@ -229,24 +231,33 @@ void print_hex(unsigned char* buf, int count)
 }
 
 
-int hrav_receive_buff(int sockfd, int* bufferID, char* receivebuff, int* buffer_length){
+int hrav_receive_buff(int sockfd, int* bufferID, unsigned char* receivebuff, int* buffer_length){
 	int n;
 	int packet_num=0;
 	char have_packet = FALSE;
+	unsigned char tmpbuff[2048];
+	//printf("Begin receive \n");
 	while(1) {
-		n = recvfrom(sockfd,receivebuff,2048,0,NULL,NULL);
-		printf("Packet%d -----------------------------------------------------\n", packet_num);
+		n = recvfrom(sockfd,tmpbuff,2048,0,NULL,NULL);
+		//printf("Packet%d -----------------------------------------------------\n", packet_num);
 		packet_num ++;
-		print_hex(receivebuff, n);
-		if(receivebuff[0]==0xfe && receivebuff[1] == 0xca && receivebuff[2] == 0xae){
+		//print_hex(tmpbuff, n);
+		
+		if( (tmpbuff[0]==0xfe) && (tmpbuff[1] == 0xca) && (tmpbuff[2] == 0xae)){
 			have_packet = TRUE;
+			//printf("match \n");
 			break;
 		}
 	}
-	*bufferID = receivebuff[6]<<16 & receivebuff[5]<<8 & receivebuff[4];
-	*buffer_length = n;
+
 	if(have_packet){
-		printf("FIND correct one with iD %d \n", *bufferID);
+		*bufferID = tmpbuff[6]<<16 & tmpbuff[5]<<8 & tmpbuff[4];
+		*buffer_length = n -32;
+		memcpy( receivebuff, tmpbuff + 32,*buffer_length);
+		//printf("FIND correct one with iD %d \n", *bufferID);
+	}else{
+		*bufferID = -1;
+		*buffer_length = -1;
 	}
 
 	return 0;	
